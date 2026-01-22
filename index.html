@@ -1,0 +1,735 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, LogOut, Upload, X } from 'lucide-react';
+
+const FootballMaharaPro = () => {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [currentPage, setCurrentPage] = useState('field');
+  const [players, setPlayers] = useState([]);
+  const [matches, setMatches] = useState([
+    { id: 1, opponent: 'الهلال', date: '2026-01-25', time: '18:00', stadium: 'ملعب الأمير فيصل' },
+    { id: 2, opponent: 'النصر', date: '2026-02-01', time: '20:30', stadium: 'ملعب الجوهرة' }
+  ]);
+  const [achievements, setAchievements] = useState([
+    { id: 1, title: 'كأس الدوري', year: '2025', icon: '🏆' },
+    { id: 2, title: 'كأس الملك', year: '2025', icon: '👑' }
+  ]);
+  
+  const [playerName, setPlayerName] = useState('');
+  const [playerNumber, setPlayerNumber] = useState('');
+  const [playerPosition, setPlayerPosition] = useState('');
+  const [playerImage, setPlayerImage] = useState('');
+  const [playerRating, setPlayerRating] = useState(85);
+  const [playerImageFile, setPlayerImageFile] = useState(null);
+  
+  const [showMedalModal, setShowMedalModal] = useState(false);
+  const [selectedPlayerForMedal, setSelectedPlayerForMedal] = useState(null);
+  
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchOpponent, setMatchOpponent] = useState('');
+  const [matchDate, setMatchDate] = useState('');
+  const [matchTime, setMatchTime] = useState('');
+  const [matchStadium, setMatchStadium] = useState('');
+  
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [achievementTitle, setAchievementTitle] = useState('');
+  const [achievementYear, setAchievementYear] = useState('');
+  const [achievementIcon, setAchievementIcon] = useState('');
+  
+  const [formation, setFormation] = useState('4-3-3');
+  const [draggedPlayer, setDraggedPlayer] = useState(null);
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const medals = [
+    { id: 'motm', name: 'رجل المباراة', icon: '⭐', color: '#FFD700', description: 'أفضل لاعب في المباراة' },
+    { id: 'topscorer', name: 'الهداف', icon: '⚽', color: '#FF6B35', description: 'أكثر لاعب تسجيلاً للأهداف' },
+    { id: 'goalkeeper', name: 'حارس مرمى محترف', icon: '🧤', color: '#4ECDC4', description: 'أفضل حارس مرمى' },
+    { id: 'captain', name: 'قائد الفريق', icon: '👑', color: '#FFD700', description: 'كابتن الفريق' },
+    { id: 'assist', name: 'صانع الألعاب', icon: '🎯', color: '#95E1D3', description: 'أكثر لاعب تمريرات حاسمة' },
+    { id: 'defender', name: 'الجدار الدفاعي', icon: '🛡️', color: '#A8DADC', description: 'أفضل مدافع' }
+  ];
+
+  const formations = {
+    '4-3-3': [
+      { pos: 'GK', x: 50, y: 90 },
+      { pos: 'LB', x: 20, y: 75 }, { pos: 'CB', x: 40, y: 75 }, { pos: 'CB', x: 60, y: 75 }, { pos: 'RB', x: 80, y: 75 },
+      { pos: 'CM', x: 30, y: 55 }, { pos: 'CM', x: 50, y: 55 }, { pos: 'CM', x: 70, y: 55 },
+      { pos: 'LW', x: 20, y: 25 }, { pos: 'ST', x: 50, y: 20 }, { pos: 'RW', x: 80, y: 25 }
+    ],
+    '4-4-2': [
+      { pos: 'GK', x: 50, y: 90 },
+      { pos: 'LB', x: 20, y: 75 }, { pos: 'CB', x: 40, y: 75 }, { pos: 'CB', x: 60, y: 75 }, { pos: 'RB', x: 80, y: 75 },
+      { pos: 'LM', x: 20, y: 50 }, { pos: 'CM', x: 40, y: 55 }, { pos: 'CM', x: 60, y: 55 }, { pos: 'RM', x: 80, y: 50 },
+      { pos: 'ST', x: 40, y: 20 }, { pos: 'ST', x: 60, y: 20 }
+    ]
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const savedPlayers = await window.storage.get('players');
+        const savedMatches = await window.storage.get('matches');
+        const savedAchievements = await window.storage.get('achievements');
+        
+        if (savedPlayers && savedPlayers.value) setPlayers(JSON.parse(savedPlayers.value));
+        if (savedMatches && savedMatches.value) setMatches(JSON.parse(savedMatches.value));
+        if (savedAchievements && savedAchievements.value) setAchievements(JSON.parse(savedAchievements.value));
+      } catch (error) {
+        console.log('تحميل البيانات الافتراضية');
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        await window.storage.set('players', JSON.stringify(players));
+        await window.storage.set('matches', JSON.stringify(matches));
+        await window.storage.set('achievements', JSON.stringify(achievements));
+      } catch (error) {
+        console.log('سيتم الحفظ لاحقاً');
+      }
+    };
+    saveData();
+  }, [players, matches, achievements]);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const grassGradient = ctx.createLinearGradient(0, 0, 0, height);
+      grassGradient.addColorStop(0, '#1a4d2e');
+      grassGradient.addColorStop(0.5, '#1e5a35');
+      grassGradient.addColorStop(1, '#163d25');
+      ctx.fillStyle = grassGradient;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = 'rgba(26, 77, 46, 0.3)';
+      ctx.lineWidth = 40;
+      for (let i = 0; i < height; i += 80) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(width, i);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(40, 40, width - 80, height - 80);
+      ctx.beginPath();
+      ctx.moveTo(40, height / 2);
+      ctx.lineTo(width - 40, height / 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, 80, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeRect(width / 2 - 150, 40, 300, 120);
+      ctx.strokeRect(width / 2 - 80, 40, 160, 60);
+      ctx.strokeRect(width / 2 - 150, height - 160, 300, 120);
+      ctx.strokeRect(width / 2 - 80, height - 100, 160, 60);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(width / 2 - 60, 20, 120, 20);
+      ctx.strokeRect(width / 2 - 60, 20, 120, 20);
+      ctx.fillRect(width / 2 - 60, height - 40, 120, 20);
+      ctx.strokeRect(width / 2 - 60, height - 40, 120, 20);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(width / 2, 100, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(width / 2, height - 100, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const mainPlayers = players.filter(p => p.status === 'main');
+      const formationPositions = formations[formation];
+
+      mainPlayers.forEach((player, index) => {
+        if (index < formationPositions.length) {
+          const pos = player.x && player.y ? { x: player.x, y: player.y } : formationPositions[index];
+          const x = (pos.x / 100) * (width - 80) + 40;
+          const y = (pos.y / 100) * (height - 80) + 40;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.beginPath();
+          ctx.ellipse(x, y + 50, 35, 12, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          const playerGradient = ctx.createRadialGradient(x - 10, y - 10, 5, x, y, 45);
+          playerGradient.addColorStop(0, '#FFD700');
+          playerGradient.addColorStop(0.7, '#FFA500');
+          playerGradient.addColorStop(1, '#FF8C00');
+          ctx.fillStyle = playerGradient;
+          ctx.beginPath();
+          ctx.arc(x, y, 45, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#FFD700';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          if (player.imageData) {
+            const img = new Image();
+            img.onload = () => {
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(x, y, 40, 0, Math.PI * 2);
+              ctx.clip();
+              ctx.drawImage(img, x - 40, y - 40, 80, 80);
+              ctx.restore();
+            };
+            img.src = player.imageData;
+          } else {
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#000000';
+            ctx.fillText(player.image || '⚽', x, y);
+          }
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.fillRect(x - 25, y + 50, 50, 30);
+          ctx.strokeStyle = '#FFD700';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x - 25, y + 50, 50, 30);
+          ctx.fillStyle = '#FFD700';
+          ctx.font = 'bold 20px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(player.number, x, y + 65);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.fillRect(x - 60, y - 65, 120, 25);
+          ctx.fillStyle = '#FFD700';
+          ctx.font = 'bold 14px Arial';
+          ctx.fillText(player.name, x, y - 52);
+
+          if (player.medals && player.medals.length > 0) {
+            player.medals.forEach((medalId, mIndex) => {
+              const medal = medals.find(m => m.id === medalId);
+              if (medal) {
+                const medalX = x + 50 + (mIndex * 35);
+                const medalY = y - 30;
+                ctx.fillStyle = medal.color;
+                ctx.beginPath();
+                ctx.arc(medalX, medalY, 15, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(medal.icon, medalX, medalY + 1);
+              }
+            });
+          }
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.beginPath();
+          ctx.arc(x - 50, y - 30, 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#00FF00';
+          ctx.font = 'bold 16px Arial';
+          ctx.fillText(player.rating, x - 50, y - 27);
+        }
+      });
+    }
+  }, [players, formation, medals]);
+
+  const handleLogin = () => {
+    if (loginUsername === 'admin' && loginPassword === 'FootballMahara2025') {
+      setIsAdmin(true);
+      setShowLogin(false);
+      setLoginUsername('');
+      setLoginPassword('');
+      alert('✅ تم تسجيل الدخول بنجاح!');
+    } else {
+      alert('❌ خطأ في اسم المستخدم أو كلمة المرور!');
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPlayerImageFile(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addPlayerHandler = () => {
+    if (playerName.trim() && playerNumber.trim()) {
+      const player = {
+        id: Date.now(),
+        name: playerName.trim(),
+        number: playerNumber.trim(),
+        position: playerPosition.trim(),
+        image: playerImage.trim() || '⚽',
+        imageData: playerImageFile,
+        rating: playerRating,
+        status: 'main',
+        medals: [],
+        x: null,
+        y: null
+      };
+      setPlayers([...players, player]);
+      setPlayerName('');
+      setPlayerNumber('');
+      setPlayerPosition('');
+      setPlayerImage('');
+      setPlayerRating(85);
+      setPlayerImageFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      alert('✅ تم إضافة اللاعب!');
+    } else {
+      alert('⚠️ أدخل الاسم والرقم!');
+    }
+  };
+
+  const deletePlayer = (id) => {
+    setPlayers(players.filter(p => p.id !== id));
+    alert('✅ تم حذف اللاعب!');
+  };
+
+  const moveToReserve = (id) => {
+    setPlayers(players.map(p => p.id === id ? { ...p, status: 'reserve' } : p));
+  };
+
+  const moveToMain = (id) => {
+    setPlayers(players.map(p => p.id === id ? { ...p, status: 'main', x: null, y: null } : p));
+  };
+
+  const openMedalModal = (player) => {
+    setSelectedPlayerForMedal(player);
+    setShowMedalModal(true);
+  };
+
+  const toggleMedal = (medalId) => {
+    if (!selectedPlayerForMedal) return;
+    const currentMedals = selectedPlayerForMedal.medals || [];
+    const hasMedal = currentMedals.includes(medalId);
+    const newMedals = hasMedal ? currentMedals.filter(m => m !== medalId) : [...currentMedals, medalId];
+    
+    setPlayers(players.map(p => p.id === selectedPlayerForMedal.id ? { ...p, medals: newMedals } : p));
+    setSelectedPlayerForMedal({ ...selectedPlayerForMedal, medals: newMedals });
+  };
+
+  const handleCanvasMouseDown = (e) => {
+    if (!isAdmin) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+    const mainPlayers = players.filter(p => p.status === 'main');
+    const formationPositions = formations[formation];
+
+    for (let i = 0; i < mainPlayers.length; i++) {
+      const player = mainPlayers[i];
+      const pos = player.x && player.y ? { x: player.x, y: player.y } : formationPositions[i];
+      const x = (pos.x / 100) * (canvas.width - 80) + 40;
+      const y = (pos.y / 100) * (canvas.height - 80) + 40;
+      const distance = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
+      if (distance < 45) {
+        setDraggedPlayer(player.id);
+        break;
+      }
+    }
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (!isAdmin || !draggedPlayer) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+    const newX = ((mouseX - 40) / (canvas.width - 80)) * 100;
+    const newY = ((mouseY - 40) / (canvas.height - 80)) * 100;
+
+    setPlayers(players.map(p => p.id === draggedPlayer ? { ...p, x: Math.max(0, Math.min(100, newX)), y: Math.max(0, Math.min(100, newY)) } : p));
+  };
+
+  const handleCanvasMouseUp = () => {
+    setDraggedPlayer(null);
+  };
+
+  const openMatchModal = () => {
+    setMatchOpponent('');
+    setMatchDate('');
+    setMatchTime('');
+    setMatchStadium('');
+    setShowMatchModal(true);
+  };
+
+  const addMatch = () => {
+    if (matchOpponent.trim() && matchDate.trim() && matchTime.trim() && matchStadium.trim()) {
+      const newMatch = {
+        id: Date.now(),
+        opponent: matchOpponent.trim(),
+        date: matchDate.trim(),
+        time: matchTime.trim(),
+        stadium: matchStadium.trim()
+      };
+      setMatches([...matches, newMatch]);
+      setShowMatchModal(false);
+      alert('✅ تمت إضافة المباراة!');
+    } else {
+      alert('⚠️ املأ جميع الحقول!');
+    }
+  };
+
+  const deleteMatch = (id) => {
+    setMatches(matches.filter(m => m.id !== id));
+    alert('✅ تم حذف المباراة!');
+  };
+
+  const openAchievementModal = () => {
+    setAchievementTitle('');
+    setAchievementYear('');
+    setAchievementIcon('');
+    setShowAchievementModal(true);
+  };
+
+  const addAchievement = () => {
+    if (achievementTitle.trim() && achievementYear.trim() && achievementIcon.trim()) {
+      const newAchievement = {
+        id: Date.now(),
+        title: achievementTitle.trim(),
+        year: achievementYear.trim(),
+        icon: achievementIcon.trim()
+      };
+      setAchievements([...achievements, newAchievement]);
+      setShowAchievementModal(false);
+      alert('✅ تمت إضافة الإنجاز!');
+    } else {
+      alert('⚠️ املأ جميع الحقول!');
+    }
+  };
+
+  const deleteAchievement = (id) => {
+    setAchievements(achievements.filter(a => a.id !== id));
+    alert('✅ تم حذف الإنجاز!');
+  };
+
+  const FieldPage = () => (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-green-900 to-black p-4">
+      <div className="text-center mb-6">
+        <h2 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-400 mb-4 animate-pulse">
+          ⚽ الملعب الاحترافي 3D ⚽
+        </h2>
+        <p className="text-yellow-300 text-xl">🏟️ تماماً مثل FIFA</p>
+        {isAdmin && <p className="text-green-400 text-lg mt-2">💡 اسحب اللاعبين لتحريكهم</p>}
+      </div>
+
+      {isAdmin && (
+        <div className="max-w-6xl mx-auto mb-6 bg-gradient-to-r from-green-800 to-green-900 rounded-2xl p-6 shadow-2xl">
+          <h3 className="text-3xl font-bold text-yellow-400 mb-4">➕ إضافة لاعب جديد</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <input type="text" placeholder="الاسم" value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="px-4 py-3 rounded-lg bg-green-700 text-white font-bold text-lg" />
+            <input type="text" placeholder="الرقم" value={playerNumber} onChange={(e) => setPlayerNumber(e.target.value)} className="px-4 py-3 rounded-lg bg-green-700 text-white font-bold text-lg" />
+            <input type="text" placeholder="المركز" value={playerPosition} onChange={(e) => setPlayerPosition(e.target.value)} className="px-4 py-3 rounded-lg bg-green-700 text-white font-bold text-lg" />
+            <input type="number" placeholder="التقييم" value={playerRating} onChange={(e) => setPlayerRating(parseInt(e.target.value) || 85)} className="px-4 py-3 rounded-lg bg-green-700 text-white font-bold text-lg" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" placeholder="Emoji" value={playerImage} onChange={(e) => setPlayerImage(e.target.value)} className="px-4 py-3 rounded-lg bg-green-700 text-white font-bold text-lg text-center text-3xl" />
+            <div>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="player-image-upload" />
+              <label htmlFor="player-image-upload" className="block w-full px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg text-center cursor-pointer">
+                <Upload className="inline mr-2" size={20} />
+                {playerImageFile ? '✅ صورة' : '📷 اختر صورة'}
+              </label>
+            </div>
+            <button onClick={addPlayerHandler} className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black px-6 py-3 rounded-lg font-black text-xl shadow-lg transform hover:scale-105 transition">
+              ✅ إضافة
+            </button>
+          </div>
+          <div className="mt-4 flex gap-4 items-center">
+            <label className="text-yellow-300 font-bold text-lg">التشكيلة:</label>
+            <select value={formation} onChange={(e) => setFormation(e.target.value)} className="px-4 py-2 rounded-lg bg-green-700 text-white font-bold">
+              <option value="4-3-3">4-3-3</option>
+              <option value="4-4-2">4-4-2</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-gradient-to-br from-green-900 to-green-950 rounded-3xl shadow-2xl p-4 border-4 border-yellow-500">
+          <canvas ref={canvasRef} width="1000" height="700" className="w-full rounded-2xl shadow-inner cursor-move" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} />
+        </div>
+      </div>
+
+      {players.filter(p => p.status === 'reserve').length > 0 && (
+        <div className="max-w-6xl mx-auto mt-8">
+          <h3 className="text-4xl font-black text-yellow-400 mb-6 text-center">🪑 لاعبو الاحتياط</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {players.filter(p => p.status === 'reserve').map(player => (
+              <div key={player.id} className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl p-4 text-center border-2 border-yellow-600">
+                {player.imageData ? (
+                  <img src={player.imageData} alt={player.name} className="w-20 h-20 rounded-full mx-auto mb-2 object-cover border-4 border-yellow-500" />
+                ) : (
+                  <div className="text-5xl mb-2">{player.image}</div>
+                )}
+                <p className="text-white font-bold text-lg">{player.name}</p>
+                <p className="text-yellow-400 font-bold">#{player.number}</p>
+                {isAdmin && (
+                  <div className="mt-3 space-y-2">
+                    <button onClick={() => moveToMain(player.id)} className="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-sm">↑ أساسي</button>
+                    <button onClick={() => deletePlayer(player.id)} className="w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg font-bold text-sm">🗑️ حذف</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isAdmin && players.filter(p => p.status === 'main').length > 0 && (
+        <div className="max-w-6xl mx-auto mt-8">
+          <h3 className="text-4xl font-black text-yellow-400 mb-6 text-center">⭐ إدارة اللاعبين</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {players.filter(p => p.status === 'main').map(player => (
+              <div key={player.id} className="bg-gradient-to-r from-green-800 to-green-900 rounded-xl p-4 border-2 border-yellow-500">
+                <div className="flex items-center gap-4">
+                  {player.imageData ? (
+                    <img src={player.imageData} alt={player.name} className="w-16 h-16 rounded-full object-cover border-4 border-yellow-500" />
+                  ) : (
+                    <div className="text-6xl">{player.image}</div>
+                  )}
+                  <div className="flex-1">
+                    <h4 className="text-white font-black text-2xl">{player.name}</h4>
+                    <p className="text-yellow-300 text-lg">#{player.number} - {player.position}</p>
+                    <div className="flex gap-2 mt-2">
+                      {player.medals && player.medals.map(medalId => {
+                        const medal = medals.find(m => m.id === medalId);
+                        return medal ? <span key={medalId} className="text-2xl" title={medal.name}>{medal.icon}</span> : null;
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <button onClick={() => openMedalModal(player)} className="bg-yellow-600 hover:bg-yellow-700 text-black px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap">🏅 ميداليات</button>
+                    <button onClick={() => moveToReserve(player.id)} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap w-full">↓ احتياط</button>
+                    <button onClick={() => deletePlayer(player.id)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap w-full">🗑️ حذف</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const MatchesPage = () => (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black p-6">
+      <h2 className="text-5xl font-black text-yellow-400 text-center mb-8">📅 المباريات القادمة</h2>
+      
+      {isAdmin && (
+        <div className="text-center mb-8">
+          <button onClick={openMatchModal} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-black text-xl shadow-lg transform hover:scale-105 transition">
+            ➕ إضافة مباراة
+          </button>
+        </div>
+      )}
+      
+      <div className="max-w-5xl mx-auto space-y-6">
+        {matches.map(match => {
+          const matchDate = new Date(match.date + 'T' + match.time);
+          const now = new Date();
+          const diff = matchDate - now;
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          
+          return (
+            <div key={match.id} className="bg-gradient-to-r from-purple-800 to-purple-900 rounded-3xl p-8 shadow-2xl border-4 border-yellow-500 relative">
+              {isAdmin && (
+                <button onClick={() => deleteMatch(match.id)} className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold text-sm z-10">🗑️ حذف</button>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-8">
+                <div className="text-center">
+                  <div className="text-7xl mb-3 animate-bounce">⚽</div>
+                  <p className="text-white font-black text-2xl md:text-3xl">فوت بال مهارة 01</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-6xl md:text-8xl text-yellow-400 font-black mb-4">VS</div>
+                  <div className="bg-black bg-opacity-60 rounded-xl p-4">
+                    <p className="text-yellow-300 text-xl md:text-2xl font-bold mb-2">⏳ باقي</p>
+                    <p className="text-white text-2xl md:text-4xl font-black">{days} يوم {hours} ساعة</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-7xl mb-3">🏆</div>
+                  <p className="text-white font-black text-2xl md:text-3xl">{match.opponent}</p>
+                </div>
+              </div>
+              <div className="mt-6 bg-black bg-opacity-70 rounded-2xl p-6 text-center">
+                <p className="text-yellow-400 text-xl md:text-2xl font-bold mb-2">📍 {match.stadium}</p>
+                <p className="text-white text-lg md:text-xl">📅 {match.date} | ⏰ {match.time}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const AchievementsPage = () => (
+    <div className="min-h-screen bg-gradient-to-br from-yellow-900 to-black p-6">
+      <h2 className="text-6xl font-black text-yellow-400 text-center mb-8 animate-pulse">🏆 الإنجازات 🏆</h2>
+      
+      {isAdmin && (
+        <div className="text-center mb-8">
+          <button onClick={openAchievementModal} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-black text-xl shadow-lg transform hover:scale-105 transition">
+            ➕ إضافة إنجاز
+          </button>
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {achievements.map(ach => (
+          <div key={ach.id} className="bg-gradient-to-br from-yellow-600 via-yellow-700 to-yellow-800 rounded-3xl p-10 shadow-2xl text-center transform hover:scale-110 hover:rotate-3 transition-all duration-300 border-4 border-yellow-400 relative">
+            {isAdmin && (
+              <button onClick={() => deleteAchievement(ach.id)} className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg font-bold text-sm z-10">🗑️</button>
+            )}
+            <div className="text-9xl mb-6 animate-bounce">{ach.icon}</div>
+            <h3 className="text-3xl font-black text-white mb-3 drop-shadow-lg">{ach.title}</h3>
+            <p className="text-yellow-200 text-2xl font-bold">{ach.year}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-black">
+      <header className="bg-gradient-to-r from-green-900 via-green-800 to-black border-b-4 border-yellow-400 p-4 sticky top-0 z-50 shadow-2xl">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="text-5xl md:text-6xl">⚽</div>
+            <div>
+              <h1 className="text-2xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200">فوت بال مهارة 01</h1>
+              <p className="text-yellow-300 text-xs md:text-sm font-bold">⚡ النسخة الوحشية</p>
+            </div>
+          </div>
+          <nav className="flex gap-2 md:gap-4">
+            <button onClick={() => setCurrentPage('field')} className={`${currentPage === 'field' ? 'bg-yellow-600' : 'bg-green-700'} hover:bg-yellow-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold transition text-sm md:text-base`}>🏟️ الملعب</button>
+            <button onClick={() => setCurrentPage('matches')} className={`${currentPage === 'matches' ? 'bg-yellow-600' : 'bg-green-700'} hover:bg-yellow-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold transition text-sm md:text-base`}>📅 المباريات</button>
+            <button onClick={() => setCurrentPage('achievements')} className={`${currentPage === 'achievements' ? 'bg-yellow-600' : 'bg-green-700'} hover:bg-yellow-500 text-white px-3 md:px-4 py-2 rounded-lg font-bold transition text-sm md:text-base`}>🏆 الإنجازات</button>
+          </nav>
+          <div>
+            {isAdmin ? (
+              <button onClick={() => setIsAdmin(false)} className="bg-red-600 hover:bg-red-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-black flex items-center gap-2 shadow-lg text-sm md:text-base">
+                <LogOut size={20} /> خروج
+              </button>
+            ) : (
+              <button onClick={() => setShowLogin(true)} className="bg-yellow-600 hover:bg-yellow-700 text-black px-4 md:px-6 py-2 md:py-3 rounded-xl font-black flex items-center gap-2 shadow-lg text-sm md:text-base">
+                <Lock size={20} /> دخول
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {showLogin && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur p-4">
+          <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-3xl p-6 md:p-10 max-w-md w-full shadow-2xl border-4 border-yellow-400">
+            <h3 className="text-3xl md:text-4xl font-black text-yellow-400 mb-6 md:mb-8 text-center">🔐 دخول المسؤول</h3>
+            <input type="text" placeholder="اسم المستخدم" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} className="w-full px-4 md:px-6 py-3 md:py-4 rounded-xl mb-4 bg-green-700 text-white text-lg md:text-xl font-bold border-2 border-yellow-500" onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
+            <input type="password" placeholder="كلمة المرور" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full px-4 md:px-6 py-3 md:py-4 rounded-xl mb-6 bg-green-700 text-white text-lg md:text-xl font-bold border-2 border-yellow-500" onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
+            <div className="flex gap-4">
+              <button onClick={handleLogin} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-black px-4 md:px-6 py-3 md:py-4 rounded-xl font-black text-lg md:text-xl shadow-lg">✅ دخول</button>
+              <button onClick={() => { setShowLogin(false); setLoginUsername(''); setLoginPassword(''); }} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 md:px-6 py-3 md:py-4 rounded-xl font-black text-lg md:text-xl shadow-lg">❌ إلغاء</button>
+            </div>
+            <div className="mt-6 bg-black bg-opacity-50 rounded-xl p-4">
+              <p className="text-yellow-300 text-sm text-center font-bold">💡 البيانات:</p>
+              <p className="text-white text-center mt-2">👤 admin</p>
+              <p className="text-white text-center">🔐 FootballMahara2025</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMedalModal && selectedPlayerForMedal && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur p-4 overflow-y-auto">
+          <div className="bg-gradient-to-br from-yellow-700 to-yellow-900 rounded-3xl p-6 md:p-8 max-w-3xl w-full shadow-2xl border-4 border-yellow-400 my-8">
+            <h3 className="text-3xl md:text-4xl font-black text-white mb-2 text-center">🏅 منح ميداليات</h3>
+            <p className="text-yellow-200 text-xl md:text-2xl font-bold text-center mb-6 md:mb-8">{selectedPlayerForMedal.name}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
+              {medals.map(medal => {
+                const hasMedal = selectedPlayerForMedal.medals && selectedPlayerForMedal.medals.includes(medal.id);
+                return (
+                  <button key={medal.id} onClick={() => toggleMedal(medal.id)} className={`${hasMedal ? 'bg-green-600 border-green-400' : 'bg-gray-700 border-gray-500'} border-4 rounded-2xl p-4 md:p-6 text-center transform hover:scale-105 transition-all shadow-lg`}>
+                    <div className="text-5xl md:text-6xl mb-3">{medal.icon}</div>
+                    <h4 className="text-white font-black text-lg md:text-xl mb-2">{medal.name}</h4>
+                    <p className="text-gray-200 text-xs md:text-sm mb-3">{medal.description}</p>
+                    <div className={`${hasMedal ? 'bg-green-800' : 'bg-gray-800'} rounded-lg py-2 px-4`}>
+                      <span className="text-white font-bold text-sm">{hasMedal ? '✅ ممنوحة' : '➕ منح'}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => { setShowMedalModal(false); setSelectedPlayerForMedal(null); }} className="w-full mt-6 bg-red-600 hover:bg-red-700 text-white px-6 py-3 md:py-4 rounded-xl font-black text-lg md:text-xl shadow-lg">✅ حفظ</button>
+          </div>
+        </div>
+      )}
+
+      {showMatchModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur p-4">
+          <div className="bg-gradient-to-br from-purple-800 to-purple-900 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border-4 border-yellow-400">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-3xl font-black text-yellow-400">➕ إضافة مباراة</h3>
+              <button onClick={() => setShowMatchModal(false)} className="text-white hover:text-red-500"><X size={32} /></button>
+            </div>
+            <input type="text" placeholder="⚽ الفريق المنافس" value={matchOpponent} onChange={(e) => setMatchOpponent(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-4 bg-purple-700 text-white text-lg font-bold border-2 border-yellow-500" />
+            <input type="date" placeholder="📅 التاريخ" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-4 bg-purple-700 text-white text-lg font-bold border-2 border-yellow-500" />
+            <input type="time" placeholder="⏰ الوقت" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-4 bg-purple-700 text-white text-lg font-bold border-2 border-yellow-500" />
+            <input type="text" placeholder="🏟️ الملعب" value={matchStadium} onChange={(e) => setMatchStadium(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-6 bg-purple-700 text-white text-lg font-bold border-2 border-yellow-500" />
+            <button onClick={addMatch} className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-xl font-black text-xl shadow-lg">✅ إضافة المباراة</button>
+          </div>
+        </div>
+      )}
+
+      {showAchievementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur p-4">
+          <div className="bg-gradient-to-br from-yellow-700 to-yellow-900 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border-4 border-yellow-400">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-3xl font-black text-white">➕ إضافة إنجاز</h3>
+              <button onClick={() => setShowAchievementModal(false)} className="text-white hover:text-red-500"><X size={32} /></button>
+            </div>
+            <input type="text" placeholder="🏆 اسم الإنجاز" value={achievementTitle} onChange={(e) => setAchievementTitle(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-4 bg-yellow-800 text-white text-lg font-bold border-2 border-yellow-400" />
+            <input type="text" placeholder="📅 السنة" value={achievementYear} onChange={(e) => setAchievementYear(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-4 bg-yellow-800 text-white text-lg font-bold border-2 border-yellow-400" />
+            <input type="text" placeholder="🎯 الأيقونة (🏆)" value={achievementIcon} onChange={(e) => setAchievementIcon(e.target.value)} className="w-full px-4 py-3 rounded-xl mb-6 bg-yellow-800 text-white text-lg font-bold border-2 border-yellow-400 text-center text-3xl" />
+            <button onClick={addAchievement} className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-xl font-black text-xl shadow-lg">✅ إضافة الإنجاز</button>
+          </div>
+        </div>
+      )}
+
+      {currentPage === 'field' && <FieldPage />}
+      {currentPage === 'matches' && <MatchesPage />}
+      {currentPage === 'achievements' && <AchievementsPage />}
+
+      <footer className="bg-gradient-to-r from-black to-green-900 border-t-4 border-yellow-400 p-6 md:p-8 text-center mt-12">
+        <div className="text-5xl md:text-6xl mb-4 animate-bounce">⚽🏆</div>
+        <p className="text-yellow-400 text-2xl md:text-3xl font-black mb-2">فوت بال مهارة 01</p>
+        <p className="text-yellow-200 text-lg md:text-xl font-bold">النسخة الوحشية 🔥</p>
+        <p className="text-white mt-4 text-sm md:text-base">© 2026</p>
+      </footer>
+    </div>
+  );
+};
+
+export default FootballMaharaPro;
